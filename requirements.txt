@@ -1,0 +1,9 @@
+python-docx
+PyPDF2
+langchain
+PyMuPDF
+pdfplumber
+thefuzz[speedup]
+camelot-py[cv]
+sentence-transformers
+torch
