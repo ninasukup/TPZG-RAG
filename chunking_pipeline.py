@@ -13,7 +13,6 @@ except ImportError:
     camelot = None
 
 from docx import Document
-from docx.table import _Table
 import fitz 
 import pdfplumber
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -21,7 +20,7 @@ from thefuzz import fuzz
 
 class ChunkingPipeline:
     """
-        Features:
+    Features:
     - Processes DOCX and PDF files.
     - Extracts text, tables (including fallback methods), and metadata.
     - Chunks text semantically by sections and then by size.
