@@ -138,6 +138,9 @@ celerybeat.pid
 Knowledgebase/
 Neu_Knowledgebase/
 
+# Models
+models/
+
 # Environments
 .env
 .envrc

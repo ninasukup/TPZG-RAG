@@ -10,17 +10,25 @@ from box.exceptions import BoxValueError
 def load_vector_db(index_file, metadata_file):
     try:
         print("Loading FAISS index...")
-        index = faiss.read_index(str(index_file))  # 🔥 fix
+        index = faiss.read_index(str(index_file))
 
         metadata = []
-        with open(str(metadata_file), "r") as f:  # 🔥 fix
-            for line in f:
-                metadata.append(json.loads(line.strip()))
-        
+        # Read JSONL in UTF-8 (BOM-tolerant) so “weird” bytes don’t blow up on Windows
+        with open(str(metadata_file), "r", encoding="utf-8-sig") as f:
+            for lineno, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    metadata.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    raise RuntimeError(f"Bad JSON on line {lineno}: {e.msg}") from e
+
         logging.info("Data Loaded From Vector DB Successfully (FAISS and JSONL)!")
         return index, metadata
     except Exception as e:
         raise RuntimeError(f"Failed to load vector DB: {e}")
+
     
 def read_yaml(path_to_yaml: Path) -> ConfigBox:
     """

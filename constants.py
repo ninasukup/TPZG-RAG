@@ -14,10 +14,12 @@ CONFIG_JSON_PATH = BASE_DIR / "config" / "config.json"
 
 VECTORSTORE_PATH = BASE_DIR / "Neu_Knowledgebase" / "faiss_index.bin"
 
-METADATA_PATH = BASE_DIR / "Neu_Knowledgebase" / "metadata.jsonl"
+METADATA_PATH = BASE_DIR / "Neu_Knowledgebase" / "chunks_flat.jsonl"
 
-MODEL_PATH = BASE_DIR / "models" / "Meta-Llama-3-8B-Instruct-Q4_K_M.gguf"
+MODEL_PATH = BASE_DIR / "models" / "Meta-Llama-3-8B-Instruct.Q2_K.gguf"
 
-N_GPU_LAYERS = -1
+N_GPU_LAYERS = 0
 
-N_CTX = 4096
+N_CTX = 2048
+
+RERANKER_MODEL = 'cross-encoder/ms-marco-MiniLM-L-6-v2'

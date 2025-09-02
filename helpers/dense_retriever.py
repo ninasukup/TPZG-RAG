@@ -41,23 +41,33 @@ class DenseRetrieval:
         self.config = config
         self.retriever = SentenceTransformer(self.config.transformer)
 
+    @staticmethod
     async def dense_retrieval(query_embedding, index, metadata, top_k):
         try:
-            start_time = time.time()  # Start timing
+            start_time = time.time()
 
             _, indices = index.search(query_embedding, top_k)
 
-            retrieved_docs = [metadata[i]["text"] for i in indices[0]]
+            retrieved_docs = []
+            for idx in indices[0]:
+                payload = metadata[idx]  # could be {"content": "...", "metadata": {...}} OR {"metadata": {...}}
 
-            end_time = time.time()  # End timing
-            elapsed_time = end_time - start_time
-            print(f"Dense retrieval took {elapsed_time:.4f} seconds")
+            if "content" in payload and (payload["content"] or "").strip():
+                meta = payload.get("metadata", {})
+                retrieved_docs.append({"content": payload["content"], "metadata": meta})
+            else:
+                meta = payload.get("metadata", payload)
+                content = (meta.get("content") or "").strip()
+                retrieved_docs.append({"content": content, "metadata": meta})
+
+            elapsed = time.time() - start_time
+            print(f"Dense retrieval took {elapsed:.4f} seconds")
             logging.info("Documents Retrieved Successfully! - Dense R")
             return retrieved_docs
-        
+
         except Exception as e:
-            print(f"Error generating embedding: {e}")
-            raise e
+            print(f"Error during dense retrieval: {e}")
+            raise
         
     def dense_embeddings(dense_model, metadata, batch_size = 32):
         try:
