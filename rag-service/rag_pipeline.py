@@ -5,6 +5,7 @@
 from fastapi import (HTTPException,
                      status,
                      APIRouter)
+import uuid
 
 from helpers.utils import load_vector_db
 from helpers.schemas import (CompletionRequest,
@@ -14,16 +15,23 @@ from helpers.schemas import (CompletionRequest,
 
 from helpers.dense_retriever import dense_retrieval_instance
 from rag.embeddings import EmbedderWrapper
-# from rag_service.university_api import query_university_endpoint
+
 from constants import (VECTORSTORE_PATH,
-                       METADATA_PATH)
+                       METADATA_PATH,
+                       MODEL_PATH,
+                       N_GPU_LAYERS,
+                       N_CTX)
 
 import numpy as np
 import time
 import logging
 
+from rag.generation import LocalGenerator
+
+
 index, metadata = load_vector_db(index_file=VECTORSTORE_PATH, metadata_file=METADATA_PATH)
 embedding_model_instance = EmbedderWrapper()
+local_llm_instance = LocalGenerator(model_path=MODEL_PATH, n_gpu_layers=N_GPU_LAYERS, n_ctx=N_CTX)
 
 router = APIRouter()
 
@@ -59,62 +67,61 @@ async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
         retrieved_docs = await dense_retrieval_instance.dense_retrieval(query_embedding, index, metadata, top_k=20)
         print(f"Retrieved Documents: {retrieved_docs}")
         logging.info(f"Retrieved Documents: {retrieved_docs}")
+        print(f"Retrieved {len(retrieved_docs)} documents.")
 
-        # Step 2: Format the RAG query
-        # rag_query = (
-        #     f"You are a helpful university admissions assistant. Your task is to answer the user's question based *only* on the provided documents: {info}. "
-        #     f"The user's question is: '{user_prompt}'.\n\n"
+        context_str = ""
+        for i, doc in enumerate(retrieved_docs):
+            # doc is expected to be a dict with 'content' and 'metadata' keys
+            content = doc.get('content', '')
+            source = doc.get('metadata', {}).get('source_filename', 'Unknown')
+            page = doc.get('metadata', {}).get('page_numbers', ['N/A'])[0]
+            context_str += f"--- Document {i+1} (Source: {source}, Page: {page}) ---\n"
+            context_str += content + "\n\n"
+
+        # Step 2: Format the RAG prompt
+        rag_prompt = (
+            f"You are a helpful university admissions assistant. Your task is to answer the user's question based *only* on the provided documents: {info}. "
+            f"The user's question is: '{user_prompt}'.\n\n"
             
-        #     f"Please provide a comprehensive and well-structured answer in English. Your answer should:\n"
-        #     f"1.  **Start with a direct summary** of the main point.\n"
-        #     f"2.  **Use Markdown headings (##)** to create clear sections for different topics (e.g., 'Required Documents', 'Application Process').\n"
-        #     f"3.  **Elaborate on each point.** Instead of just listing a document, briefly explain its significance. For example, if a language certificate is needed, explain what it proves.\n"
-        #     f"4.  **Synthesize information** into a cohesive narrative rather than just extracting bullet points.\n"
-        #     f"5.  **Bold key terms** to make the answer easy to scan.\n"
-        #     f"6.  Conclude with a 'Sources' section, listing the relevant URLs you used from the documents.\n\n"
+            f"Please provide a comprehensive and well-structured answer in English. Your answer should:\n"
+            f"1.  **Start with a direct summary** of the main point.\n"
+            f"2.  **Use Markdown headings (##)** to create clear sections for different topics (e.g., 'Required Documents', 'Application Process').\n"
+            f"3.  **Elaborate on each point.** Instead of just listing a document, briefly explain its significance. For example, if a language certificate is needed, explain what it proves.\n"
+            f"4.  **Synthesize information** into a cohesive narrative rather than just extracting bullet points.\n"
+            f"5.  **Bold key terms** to make the answer easy to scan.\n"
+            f"6.  Conclude with a 'Sources' section, listing the relevant URLs you used from the documents.\n\n"
             
-        #     f"--- [BEGIN RESPONSE] ---"
-        # )
+            f"--- [BEGIN RESPONSE] ---"
+        )
 
-        # print(f"RAG Query: {rag_query}")
-        # logging.info(f"RAG Query: {rag_query}")
+        # Step 3: LLM Generation
+        llm_response = local_llm_instance.generate(rag_prompt)
 
-        # # Step 3: Call the LLM via the university endpoint
-        # uni_response = await query_university_endpoint(rag_query, 'FAU RAG')
-        # logging.info(f"{uni_response}")
+        # Step 4: Create response object
+        response = ChatCompletionResponse(
+            id=str(uuid.uuid4()),
+            object="chat.completion",
+            created=int(time.time()),
+            model=request.model or "local-llama3-8b",
+            choices=[
+                ChatChoiceResponse(
+                    index=0,
+                    message=ChatMessageResponse(
+                        role="assistant",
+                        content=llm_response
+                    ),
+                    finish_reason="stop"
+                )
+            ],
+            usage={
+                "prompt_tokens": len(rag_prompt.split()),
+                "completion_tokens": len(llm_response.split()),
+                "total_tokens": len(rag_prompt.split()) + len(llm_response.split())
+            }
+        )
 
-        # end_time = time.time()
-        # elapsed_time = end_time - start_time
-        # print(f"Response took {elapsed_time:.4f} seconds")
-        # print(f"Citations: {citation_section}")
-        # logging.info(f"Finished query in: {end_time - start_time} seconds")
-
-        # final_content = f"{uni_response}{citation_section}"
-
-        # response = ChatCompletionResponse(
-        #     id=str(uuid.uuid4()),
-        #     object="chat.completion",
-        #     created=int(time.time()),
-        #     model=request.model or "default-model",
-        #     choices=[
-        #         ChatChoiceResponse(
-        #             index=0,
-        #             message=ChatMessageResponse(
-        #                 role="assistant",
-        #                 content=f"{uni_response}{citation_section}"
-        #             ),
-        #             finish_reason="stop"
-        #         )
-        #     ],
-        #     usage={
-        #         "prompt_tokens": len(user_prompt.split()),
-        #         "completion_tokens": len(uni_response.split()),
-        #         "total_tokens": len(user_prompt.split()) + len(uni_response.split())
-        #     }
-        # )
-
-        # print(f"Query:\n{user_prompt}\n\nUniversity Response with Citations:\n{final_content}\n")
-        # return response
+        print(f"--- Final Answer ---\nQuery: {user_prompt}\n\nLLM Response: {llm_response}\n")
+        return response
 
     except Exception as e:
         logging.error(f"Unexpected error: {e}", exc_info=True)

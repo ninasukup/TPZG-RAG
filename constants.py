@@ -15,3 +15,9 @@ CONFIG_JSON_PATH = BASE_DIR / "config" / "config.json"
 VECTORSTORE_PATH = BASE_DIR / "Neu_Knowledgebase" / "faiss_index.bin"
 
 METADATA_PATH = BASE_DIR / "Neu_Knowledgebase" / "metadata.jsonl"
+
+MODEL_PATH = BASE_DIR / "models" / "Meta-Llama-3-8B-Instruct-Q4_K_M.gguf"
+
+N_GPU_LAYERS = -1
+
+N_CTX = 4096
