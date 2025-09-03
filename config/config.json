@@ -1,9 +1,0 @@
-{
-  "llm": {
-    "FAU RAG": {
-      "base_url": "http://lme49.cs.fau.de:5000/v1/chat/completions",
-      "api_key": "xFhGltj52Gn",
-      "model": "TechxGenus_Mistral-Large-Instruct-2407-AWQ"
-    }
-  }
-}

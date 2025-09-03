@@ -15,10 +15,13 @@ from helpers.schemas import (CompletionRequest,
                              ChatCompletionResponse,
                              ChatChoiceResponse,
                              ChatMessageResponse)
-from helpers.dense_retriever import dense_retrieval_instance
-from rag.embeddings import EmbedderWrapper
-from rag.generation import LocalGenerator
-from rag.rerank import Reranker
+
+from helpers.dense_retriever import dense_retrieval_instance # Dense Retriever
+
+from rag.embeddings import EmbedderWrapper # Embeddder
+from rag.generation import LocalGenerator # Local LLM
+from rag.rerank import Reranker # Reranker
+
 from constants import (VECTORSTORE_PATH,
                        METADATA_PATH,
                        MODEL_PATH,
@@ -112,23 +115,27 @@ async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
                 print("  No content found in common keys")
         print("---")
 
-        # 5) Build context string from reranked documents
+        # 4) Build context string from reranked documents
         context_str = extract_content(reranked_docs)
         print(f"Context String: {context_str}:")
 
-        # 6) RAG Prompt Construction & Final Prompt
+        # 5) RAG Prompt Construction & Final Prompt
         # You can customize the prompt template as needed
         rag_prompt = (
             "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
-            "You are an expert assistant for analyzing technical proposals. Answer the user's question based *only* on the provided documents."
-            " If the answer is not explicitly present, reply exactly: 'Not stated in the provided documents.'\n"
-            "Provide a detailed, well-structured explanation that integrates information across the documents."
-            " Highlight unique features, context, and deployment aspects where relevant.\n\n"
+            "You are an expert assistant for analyzing technical proposals. "
+            "Answer the user's question based *only* on the provided documents. "
+            "Do not use any outside knowledge. If the answer is not explicitly present, "
+            "reply exactly: 'Not stated in the provided documents.'\n\n"
+            "When possible, structure your response into the following sections:\n"
+            "1. **Summary** – a concise explanation directly answering the user’s question.\n"
+            "2. **Key Details** – elaborate with supporting information, features, or context from the documents.\n"
+            "3. **Deployment/Architecture (if relevant)** – describe how it is implemented or used, if available.\n"
+            "4. **Sources** – list the most relevant source filenames used.\n\n"
             f"Here are the most relevant documents (verbatim excerpts):\n\n{context_str}\n"
             "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
             f"Question: {user_prompt}\n\n"
-            "Please provide a comprehensive answer in multiple sentences or short paragraphs."
-            " Also include the most likely source filename(s) you used."
+            "Provide your response using the structured format above."
             "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
         )
 
@@ -137,13 +144,13 @@ async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
 
         print(f"Final Prompt: {final_prompt}:")
 
-        # 7) Generate response from local LLM
+        # 6) Generate response from local LLM
         llm_response = local_llm_instance.generate(final_prompt)
 
         end_time = time.time()
         print(f"Full response took {end_time - start_time:.4f} seconds.")
 
-        # 8) RAG response formatting
+        # 7) RAG response formatting
         response = ChatCompletionResponse(
             id=str(uuid.uuid4()),
             object="chat.completion",
