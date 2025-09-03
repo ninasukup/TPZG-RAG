@@ -14,7 +14,6 @@ def load_vector_db(index_file, metadata_file):
         index = faiss.read_index(str(index_file))
 
         metadata = []
-        # Read JSONL in UTF-8 (BOM-tolerant) so weird bytes don't blow up on Windows
         with open(str(metadata_file), "r", encoding="utf-8-sig") as f:
             for lineno, line in enumerate(f, 1):
                 line = line.strip()
@@ -47,11 +46,11 @@ def read_yaml(path_to_yaml: Path) -> ConfigBox:
     
 
 def _format_source(doc: Dict[str, Any]) -> Tuple[str, str]:
-    """Extract source and page information from document."""
-    # Get metadata if it exists
+    """
+    Extract source and page information from document.
+    """
     meta = doc.get("metadata", {})
     
-    # Try multiple possible keys for source
     source = (
         doc.get("source_filename") 
         or doc.get("source") 
@@ -60,7 +59,6 @@ def _format_source(doc: Dict[str, Any]) -> Tuple[str, str]:
         or "Unknown"
     )
     
-    # Try multiple possible keys for page
     page = (
         doc.get("page")
         or doc.get("page_number")
@@ -74,11 +72,12 @@ def _format_source(doc: Dict[str, Any]) -> Tuple[str, str]:
     
 
 def extract_content(reranked_docs: List[Dict[str, Any]]) -> str:
-    """Extract and format content from reranked documents."""
+    """
+    Extract and format content from reranked documents.
+    """
     processed_docs = []
     
     for i, doc in enumerate(reranked_docs):
-        # Try multiple possible content keys
         content = (
             doc.get("content")
             or doc.get("text") 
@@ -87,7 +86,6 @@ def extract_content(reranked_docs: List[Dict[str, Any]]) -> str:
             or ""
         )
         
-        # If still no content, check metadata
         if not content and "metadata" in doc:
             metadata_obj = doc["metadata"]
             content = (

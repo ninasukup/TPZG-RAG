@@ -13,8 +13,8 @@ class LocalGenerator:
                 model_path=model_path,
                 n_gpu_layers=n_gpu_layers,
                 n_ctx=n_ctx,
-                verbose=True,  # Set to False for less console output
-                chat_format="llama-3" # Use the correct chat format for your model
+                verbose=False,  # Set to False for less console output
+                chat_format="llama-3"
             )
             print("✅ Local LLM loaded successfully.")
         except Exception as e:

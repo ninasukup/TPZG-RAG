@@ -26,24 +26,30 @@ from constants import (VECTORSTORE_PATH,
                        N_CTX,
                        RERANKER_MODEL)
 
-# --- Initialize Global Instances ---
+# Initialize Metadata and Vector Store
 index, metadata = load_vector_db(index_file=VECTORSTORE_PATH, metadata_file=METADATA_PATH)
+
+# Intialize RAG components
 embedding_model_instance = EmbedderWrapper()
 reranker_instance = Reranker(model_name=RERANKER_MODEL)
 local_llm_instance = LocalGenerator(model_path=str(MODEL_PATH), n_gpu_layers=N_GPU_LAYERS, n_ctx=N_CTX)
 
+# Initialize FastAPI router
 router = APIRouter()
 
+# Define the RAG endpoint
 @router.post("/v1/chat/completions", response_model=ChatCompletionResponse)
 async def rag_endpoint(request: CompletionRequest) -> ChatCompletionResponse:
     return await rag_pipeline(request)
 
-
+# Full RAG pipeline function
 async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
     """
-    Full RAG implementation with retrieval, reranking, and local generation.
+    Full RAG implementation with embedding → retrieval → reranking → local generation.
     """
     try:
+        # RAG Pipeline Steps
+        
         # 1) Extract user prompt
         user_prompt = request.prompt
         if not user_prompt and request.messages:
@@ -60,7 +66,9 @@ async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
 
         # 2) Dense Retrieval
         dense_start = time.time()
+        # a) Embed the user query
         query_embedding = np.array(embedding_model_instance.embed([user_prompt]), dtype="float32")
+        # b) Retrieve top documents from vector store, change `top_k` as needed
         retrieved_docs: List[Dict[str, Any]] = await dense_retrieval_instance.dense_retrieval(
             query_embedding, index, metadata, top_k=20
         )
@@ -83,7 +91,8 @@ async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
                     print(f"{key}: {type(value)} - {value}")
         print("---")
 
-        # 3) Rerank
+        # 3) Rerank the retrieved documents
+        # Change `top_n` to control how many top documents to keep after reranking
         reranked_docs: List[Dict[str, Any]] = reranker_instance.rerank(user_prompt, retrieved_docs, top_n=5)
         print(f"Reranked and selected top {len(reranked_docs)} documents.")
 
@@ -103,34 +112,38 @@ async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
                 print("  No content found in common keys")
         print("---")
 
-        # 5) Build context string
+        # 5) Build context string from reranked documents
         context_str = extract_content(reranked_docs)
+        print(f"Context String: {context_str}:")
 
-        # 6) Compose prompt (tighten task & output format)
-        rag_prompt_template = (
+        # 6) RAG Prompt Construction & Final Prompt
+        # You can customize the prompt template as needed
+        rag_prompt = (
             "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
-            "You are an expert assistant for analyzing technical proposals. Answer the user's question based only on the provided documents."
+            "You are an expert assistant for analyzing technical proposals. Answer the user's question based *only* on the provided documents."
             " If the answer is not explicitly present, reply exactly: 'Not stated in the provided documents.'\n"
+            "Provide a detailed, well-structured explanation that integrates information across the documents."
+            " Highlight unique features, context, and deployment aspects where relevant.\n\n"
             f"Here are the most relevant documents (verbatim excerpts):\n\n{context_str}\n"
             "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
             f"Question: {user_prompt}\n\n"
-            "Please answer in one concise sentence. Also include the most likely source filename you used."
+            "Please provide a comprehensive answer in multiple sentences or short paragraphs."
+            " Also include the most likely source filename(s) you used."
             "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
         )
 
-        final_prompt = rag_prompt_template.replace("\r\n", "\n")
+        # Just to ensure no Windows-style line endings
+        final_prompt = rag_prompt.replace("\r\n", "\n")
 
-        print("\n--- FINAL PROMPT SENT TO LLM ---\n")
-        print(final_prompt)
-        print("\n---------------------------------\n")
+        print(f"Final Prompt: {final_prompt}:")
 
-        # 7) Generate
+        # 7) Generate response from local LLM
         llm_response = local_llm_instance.generate(final_prompt)
 
         end_time = time.time()
         print(f"Full response took {end_time - start_time:.4f} seconds.")
 
-        # 8) Return structured response
+        # 8) RAG response formatting
         response = ChatCompletionResponse(
             id=str(uuid.uuid4()),
             object="chat.completion",

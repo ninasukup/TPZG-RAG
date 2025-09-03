@@ -14,11 +14,11 @@ CONFIG_JSON_PATH = BASE_DIR / "config" / "config.json"
 
 VECTORSTORE_PATH = BASE_DIR / "Neu_Knowledgebase" / "faiss_index.bin"
 
-METADATA_PATH = BASE_DIR / "Neu_Knowledgebase" / "chunks_flat.jsonl"
+METADATA_PATH = BASE_DIR / "Neu_Knowledgebase" / "metadata.jsonl"
 
 MODEL_PATH = BASE_DIR / "models" / "Meta-Llama-3-8B-Instruct.Q2_K.gguf"
 
-N_GPU_LAYERS = 0
+N_GPU_LAYERS = 20
 
 N_CTX = 2048
 
