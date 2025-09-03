@@ -20,6 +20,6 @@ MODEL_PATH = BASE_DIR / "models" / "Meta-Llama-3-8B-Instruct.Q2_K.gguf"
 
 N_GPU_LAYERS = 20
 
-N_CTX = 2048
+N_CTX = 4096
 
 RERANKER_MODEL = 'cross-encoder/ms-marco-MiniLM-L-6-v2'

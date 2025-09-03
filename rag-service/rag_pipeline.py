@@ -21,6 +21,8 @@ from helpers.dense_retriever import dense_retrieval_instance # Dense Retriever
 from rag.embeddings import EmbedderWrapper # Embeddder
 from rag.generation import LocalGenerator # Local LLM
 from rag.rerank import Reranker # Reranker
+from prompting import (build_rag_prompt,
+                       build_universal_rag_prompt) # Prompt builder
 
 from constants import (VECTORSTORE_PATH,
                        METADATA_PATH,
@@ -96,7 +98,7 @@ async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
 
         # 3) Rerank the retrieved documents
         # Change `top_n` to control how many top documents to keep after reranking
-        reranked_docs: List[Dict[str, Any]] = reranker_instance.rerank(user_prompt, retrieved_docs, top_n=5)
+        reranked_docs: List[Dict[str, Any]] = reranker_instance.rerank(user_prompt, retrieved_docs, top_n=8)
         print(f"Reranked and selected top {len(reranked_docs)} documents.")
 
         # Debug: Print reranked documents structure
@@ -121,23 +123,24 @@ async def rag_pipeline(request: CompletionRequest) -> ChatCompletionResponse:
 
         # 5) RAG Prompt Construction & Final Prompt
         # You can customize the prompt template as needed
-        rag_prompt = (
-            "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
-            "You are an expert assistant for analyzing technical proposals. "
-            "Answer the user's question based *only* on the provided documents. "
-            "Do not use any outside knowledge. If the answer is not explicitly present, "
-            "reply exactly: 'Not stated in the provided documents.'\n\n"
-            "When possible, structure your response into the following sections:\n"
-            "1. **Summary** – a concise explanation directly answering the user’s question.\n"
-            "2. **Key Details** – elaborate with supporting information, features, or context from the documents.\n"
-            "3. **Deployment/Architecture (if relevant)** – describe how it is implemented or used, if available.\n"
-            "4. **Sources** – list the most relevant source filenames used.\n\n"
-            f"Here are the most relevant documents (verbatim excerpts):\n\n{context_str}\n"
-            "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
-            f"Question: {user_prompt}\n\n"
-            "Provide your response using the structured format above."
-            "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-        )
+        rag_prompt = build_universal_rag_prompt(user_prompt, context_str)
+        # rag_prompt = (
+        #     "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n"
+        #     "You are an expert assistant for analyzing technical proposals. "
+        #     "Answer the user's question based *only* on the provided documents. "
+        #     "Do not use any outside knowledge. If the answer is not explicitly present, "
+        #     "reply exactly: 'Not stated in the provided documents.'\n\n"
+        #     "When possible, structure your response into the following sections:\n"
+        #     "1. **Summary** – a concise explanation directly answering the user’s question.\n"
+        #     "2. **Key Details** – elaborate with supporting information, features, or context from the documents.\n"
+        #     "3. **Deployment/Architecture (if relevant)** – describe how it is implemented or used, if available.\n"
+        #     "4. **Sources** – list the most relevant source filenames used.\n\n"
+        #     f"Here are the most relevant documents (verbatim excerpts):\n\n{context_str}\n"
+        #     "<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
+        #     f"Question: {user_prompt}\n\n"
+        #     "Provide your response using the structured format above."
+        #     "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        # )
 
         # Just to ensure no Windows-style line endings
         final_prompt = rag_prompt.replace("\r\n", "\n")
